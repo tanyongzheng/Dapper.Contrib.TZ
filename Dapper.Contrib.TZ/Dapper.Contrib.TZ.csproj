@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>1.50.5.1</Version>
+    <Version>1.50.5.2</Version>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Description>Dapper.Contrib拓展，加入了按条件查找、分页等功能</Description>
@@ -10,11 +10,14 @@
 
   <ItemGroup>
     <Compile Include="..\Dapper\TypeExtensions.cs" />
-    <Compile Include="..\Dapper.Contrib\SqlMapperExtensions.Async.cs" />
-    <Compile Include="..\Dapper.Contrib\SqlMapperExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Dapper.Contrib\Dapper.Contrib.csproj" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.3.0" />
+    <PackageReference Include="System.Reflection.Emit" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dapper\Dapper.csproj" />
   </ItemGroup>
 </Project>
