@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dapper.Contrib.Extensions
+namespace Dapper.Contrib.Extensions.TZ
 {
 
     //自定义扩展方法，基于Dapper-1.50.5 ，Dapper.Contrib-1.50.5

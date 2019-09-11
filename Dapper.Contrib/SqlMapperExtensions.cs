@@ -15,7 +15,7 @@ using DataException = System.InvalidOperationException;
 using System.Threading;
 #endif
 
-namespace Dapper.Contrib.Extensions
+namespace Dapper.Contrib.Extensions.TZ
 {
     /// <summary>
     /// The Dapper.Contrib extensions for Dapper
