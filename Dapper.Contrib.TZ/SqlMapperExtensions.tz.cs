@@ -683,27 +683,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             //var result = connection.Query(sql);
             var result = connection.Query(sql, dynParms);
-            var list = new List<T>();
-            foreach (IDictionary<string, object> res in result)
-            {
-                var obj = ProxyGenerator.GetInterfaceProxy<T>();
-                foreach (var property in TypePropertiesCache(type))
-                {
-                    var val = res[property.Name];
-                    if (val == null) continue;
-                    if (property.PropertyType.IsGenericType() && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                    {
-                        var genericType = Nullable.GetUnderlyingType(property.PropertyType);
-                        if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
-                    }
-                    else
-                    {
-                        property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
-                    }
-                }
-                ((IProxy)obj).IsDirty = false;   //reset change tracking and return
-                list.Add(obj);
-            }
+            var list = DynamicToInterfaceList<T>(result);
             return list;
         }
 
@@ -787,27 +767,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             //var result = connection.Query(sql);
             var result = connection.Query(sql);
-            var list = new List<T>();
-            foreach (IDictionary<string, object> res in result)
-            {
-                var obj = ProxyGenerator.GetInterfaceProxy<T>();
-                foreach (var property in TypePropertiesCache(type))
-                {
-                    var val = res[property.Name];
-                    if (val == null) continue;
-                    if (property.PropertyType.IsGenericType() && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                    {
-                        var genericType = Nullable.GetUnderlyingType(property.PropertyType);
-                        if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
-                    }
-                    else
-                    {
-                        property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
-                    }
-                }
-                ((IProxy)obj).IsDirty = false;   //reset change tracking and return
-                list.Add(obj);
-            }
+            var list = DynamicToInterfaceList<T>(result);
             return list;
         }
 
@@ -849,117 +809,7 @@ namespace Dapper.Contrib.Extensions.TZ
         #endregion
 
         #region 分页
-
-        /// <summary>
-        /// 分页
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="pageSize">每页大小</param>
-        /// <param name="pageIndex">页数，第几页</param>
-        /// <param name="whereSql">条件sql语句</param>
-        /// <param name="sortBy"></param>
-        /// <param name="dicParms">sql参数化</param>
-        /// <param name="reocrdCount">返回的总记录数</param>
-        /// <param name="transaction">事务</param>
-        /// <param name="commandTimeout">超时时间</param>
-        /// <returns></returns>
-        public static IEnumerable<T> Pager<T>(this IDbConnection connection,
-            int pageSize,
-            int pageIndex,
-            string whereSql,
-            string sortBy,
-            Dictionary<string, object> dicParms,
-            out int reocrdCount,
-            IDbTransaction transaction = null,
-            int? commandTimeout = null) where T : class
-        {
-            reocrdCount = 0;
-            var type = typeof(T);
-            //去掉缓存的sql语句
-            var name = GetTableName(type);
-            //自定义条件
-            if (!string.IsNullOrEmpty(whereSql))
-            {
-                if (!whereSql.ToLower().Contains("where"))
-                {
-                    whereSql = " where " + whereSql;
-                }
-            }
-
-            //自定义参数
-            var dynParms = new DynamicParameters();
-            dynParms.AddDynamicParams(dicParms);
-
-            #region 总记录数
-            var reocrdSql = $"select count(1) reocrdCount  from {name} {whereSql}";
-            reocrdCount = connection.QuerySingle<int>(reocrdSql, dynParms, transaction, commandTimeout: commandTimeout);
-            #endregion
-            #region 分页
-            int startLimit = 1;
-            if (pageIndex < 0)
-            {
-                pageIndex = 0;
-            }
-            if (pageSize > 0)
-            {
-                startLimit = (pageIndex - 1) * pageSize + 1;
-            }
-            var selectQuery = $"select * from {name} {whereSql}";
-            //默认id来排序
-            if (string.IsNullOrEmpty(sortBy))
-            {
-                var key = GetSingleKey<T>(nameof(Pager));
-                sortBy = key.Name;
-            }
-            //排序
-            if (!string.IsNullOrEmpty(sortBy) && !sortBy.ToLower().Contains("order ") && !sortBy.ToLower().Contains(" by"))
-            {
-                sortBy = " order by " + sortBy;
-            }
-            /*const string sql = @"  SELECT  *
-                            FROM    ( SELECT    ROW_NUMBER() OVER ( /**orderby*#1# ) AS RowNum, l.*, lv.Name as [Level]
-                                      FROM      [Log] l
-                                      INNER JOIN [Level] lv ON l.LevelId = lv.Id
-                                      /**where*#1#
-                                    ) AS RowConstrainedResult
-                            WHERE   RowNum >= (@PageIndex * @PageSize + 1 )
-                                AND RowNum <= (@PageIndex + 1) * @PageSize
-                            ORDER BY RowNum";*/
-            string sql =
-                $@"SELECT * FROM(
-                                    SELECT ROW_NUMBER() OVER ({sortBy}) AS tempid, * FROM {"(" + selectQuery + ") t "} WHERE 1=1
-                                ) AS tempTableName WHERE tempid BETWEEN {startLimit} AND {pageIndex * pageSize}";
-            //if (!type.IsInterface()) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
-            if (!type.IsInterface()) return connection.Query<T>(sql, dynParms, transaction, commandTimeout: commandTimeout);
-
-            //var result = connection.Query(sql);
-            var result = connection.Query(sql, dynParms);
-            var list = new List<T>();
-            foreach (IDictionary<string, object> res in result)
-            {
-                var obj = ProxyGenerator.GetInterfaceProxy<T>();
-                foreach (var property in TypePropertiesCache(type))
-                {
-                    var val = res[property.Name];
-                    if (val == null) continue;
-                    if (property.PropertyType.IsGenericType() && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                    {
-                        var genericType = Nullable.GetUnderlyingType(property.PropertyType);
-                        if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
-                    }
-                    else
-                    {
-                        property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
-                    }
-                }
-                ((IProxy)obj).IsDirty = false;   //reset change tracking and return
-                list.Add(obj);
-            }
-            #endregion
-            return list;
-        }
-
+        
         /// <summary>
         /// 分页
         /// </summary>
@@ -985,52 +835,17 @@ namespace Dapper.Contrib.Extensions.TZ
         {
             int reocrdCount = 0;
             var type = typeof(T);
-
-            //去掉缓存的sql语句
-            var name = GetTableName(type);
-            //自定义条件
-            if (!string.IsNullOrEmpty(whereSql))
-            {
-                if (!whereSql.ToLower().Contains("where"))
-                {
-                    whereSql = " where " + whereSql;
-                }
-            }
+            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
 
             //自定义参数
-            var dynParms = new DynamicParameters();
-            dynParms.AddDynamicParams(dicParms);
+            var dynParms = pagerSqlResult.dynParms;
 
             #region 总记录数
-            var reocrdSql = $"select count(1) reocrdCount  from {name} {whereSql}";
-            reocrdCount = connection.QuerySingle<int>(reocrdSql, dynParms, transaction, commandTimeout: commandTimeout);
+            var recordSql = pagerSqlResult.recordSql;
+            reocrdCount = connection.QuerySingle<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
             #endregion
             #region 分页
-            int startLimit = 1;
-            if (pageIndex < 0)
-            {
-                pageIndex = 0;
-            }
-            if (pageSize > 0)
-            {
-                startLimit = (pageIndex - 1) * pageSize + 1;
-            }
-            var selectQuery = $"select * from {name} {whereSql}";
-            //默认id来排序
-            if (string.IsNullOrEmpty(sortBy))
-            {
-                var key = GetSingleKey<T>(nameof(Pager));
-                sortBy = key.Name;
-            }
-            //排序
-            if (!string.IsNullOrEmpty(sortBy) && !sortBy.ToLower().Contains("order ") && !sortBy.ToLower().Contains(" by"))
-            {
-                sortBy = " order by " + sortBy;
-            }
-            string sql =
-                $@"SELECT * FROM(
-                                    SELECT ROW_NUMBER() OVER ({sortBy}) AS tempid, * FROM {"(" + selectQuery + ") t "} WHERE 1=1
-                                ) AS tempTableName WHERE tempid BETWEEN {startLimit} AND {pageIndex * pageSize}";
+            string sql = pagerSqlResult.pagerSql;
             List<T> list;
             //if (!type.IsInterface()) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
             if (!type.IsInterface())
@@ -1039,35 +854,9 @@ namespace Dapper.Contrib.Extensions.TZ
             }
             else
             {
-                //var result = connection.Query(sql);
-
                 #region IsInterface
-
                 var result = connection.Query(sql, dynParms);
-                list = new List<T>();
-                foreach (IDictionary<string, object> res in result)
-                {
-                    var obj = ProxyGenerator.GetInterfaceProxy<T>();
-                    foreach (var property in TypePropertiesCache(type))
-                    {
-                        var val = res[property.Name];
-                        if (val == null) continue;
-                        if (property.PropertyType.IsGenericType() &&
-                            property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                        {
-                            var genericType = Nullable.GetUnderlyingType(property.PropertyType);
-                            if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
-                        }
-                        else
-                        {
-                            property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
-                        }
-                    }
-
-                    ((IProxy)obj).IsDirty = false; //reset change tracking and return
-                    list.Add(obj);
-                }
-
+                list = DynamicToInterfaceList<T>(result);
                 #endregion
             }
 
@@ -1102,6 +891,50 @@ namespace Dapper.Contrib.Extensions.TZ
         {
             int reocrdCount = 0;
             var type = typeof(T);
+            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
+
+            //自定义参数
+            var dynParms = pagerSqlResult.dynParms;
+
+            #region 总记录数
+            var recordSql = pagerSqlResult.recordSql;
+            reocrdCount = await connection.QuerySingleAsync<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
+            #endregion
+
+            #region 分页
+            string sql = pagerSqlResult.pagerSql;
+            List<T> list;
+            //if (!type.IsInterface()) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
+            if (!type.IsInterface())
+            {
+                list = (await connection.QueryAsync<T>(sql, dynParms, transaction, commandTimeout: commandTimeout)).ToList();
+            }
+            else
+            {
+                #region IsInterface
+                var result = await connection.QueryAsync(sql, dynParms);
+                list = DynamicToInterfaceList<T>(result);
+                #endregion
+            }
+
+            #endregion
+            Tuple<IEnumerable<T>, int> tupleResult = new Tuple<IEnumerable<T>, int>(list, reocrdCount);
+            return tupleResult;
+        }
+        #endregion
+
+        #region private method
+
+        private static (string recordSql, string pagerSql, DynamicParameters dynParms) GetPagerSql<T>(IDbConnection connection, 
+            int pageSize,
+            int pageIndex,
+            string whereSql,
+            string sortBy,
+            Dictionary<string, object> dicParms
+            ) where T : class
+        {
+            (string recordSql, string pagerSql,DynamicParameters dynParms) result = new ValueTuple<string, string,DynamicParameters>();
+            var type = typeof(T);
 
             //去掉缓存的sql语句
             var name = GetTableName(type);
@@ -1119,9 +952,9 @@ namespace Dapper.Contrib.Extensions.TZ
             dynParms.AddDynamicParams(dicParms);
 
             #region 总记录数
-            var reocrdSql = $"select count(1) reocrdCount  from {name} {whereSql}";
-            reocrdCount = await connection.QuerySingleAsync<int>(reocrdSql, dynParms, transaction, commandTimeout: commandTimeout);
+            var recordSql = $"select count(1) reocrdCount  from {name} {whereSql}";
             #endregion
+
             #region 分页
             int startLimit = 1;
             if (pageIndex < 0)
@@ -1144,53 +977,77 @@ namespace Dapper.Contrib.Extensions.TZ
             {
                 sortBy = " order by " + sortBy;
             }
-            string sql =
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+            var sql = "";
+            if (databaseTypeName == "sqlconnection")
+            {
+                sql =
                 $@"SELECT * FROM(
                                     SELECT ROW_NUMBER() OVER ({sortBy}) AS tempid, * FROM {"(" + selectQuery + ") t "} WHERE 1=1
                                 ) AS tempTableName WHERE tempid BETWEEN {startLimit} AND {pageIndex * pageSize}";
-            List<T> list;
-            //if (!type.IsInterface()) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
-            if (!type.IsInterface())
+            }
+            else if (databaseTypeName == "mysqlconnection")
             {
-                list = (await connection.QueryAsync<T>(sql, dynParms, transaction, commandTimeout: commandTimeout)).ToList();
+                sql = $"select * from {name}  limit {pageIndex * pageSize} , {pageSize} {sortBy} {whereSql} ";
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+                sql = $"select  *  from  {name}  {whereSql}  {sortBy} limit {pageSize} OFFSET {pageIndex * pageSize} ";
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库分页");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库分页");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库分页");
             }
             else
             {
-                //var result = connection.Query(sql);
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库分页");
+            }
+            #endregion
 
-                #region IsInterface
+            result.recordSql = recordSql;
+            result.pagerSql = sql;
+            result.dynParms = dynParms;
+            return result;
+        }
 
-                var result = await connection.QueryAsync(sql, dynParms);
-                list = new List<T>();
-                foreach (IDictionary<string, object> res in result)
+        
+        private static  List<T> DynamicToInterfaceList<T>(IEnumerable<dynamic> dynamicList) where T : class
+        {
+            var type = typeof(T);
+            var list = new List<T>();
+            foreach (IDictionary<string, object> res in dynamicList)
+            {
+                var obj = ProxyGenerator.GetInterfaceProxy<T>();
+                foreach (var property in TypePropertiesCache(type))
                 {
-                    var obj = ProxyGenerator.GetInterfaceProxy<T>();
-                    foreach (var property in TypePropertiesCache(type))
+                    var val = res[property.Name];
+                    if (val == null) continue;
+                    if (property.PropertyType.IsGenericType() &&
+                        property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                     {
-                        var val = res[property.Name];
-                        if (val == null) continue;
-                        if (property.PropertyType.IsGenericType() &&
-                            property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                        {
-                            var genericType = Nullable.GetUnderlyingType(property.PropertyType);
-                            if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
-                        }
-                        else
-                        {
-                            property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
-                        }
+                        var genericType = Nullable.GetUnderlyingType(property.PropertyType);
+                        if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
                     }
-
-                    ((IProxy)obj).IsDirty = false; //reset change tracking and return
-                    list.Add(obj);
+                    else
+                    {
+                        property.SetValue(obj, Convert.ChangeType(val, property.PropertyType), null);
+                    }
                 }
 
-                #endregion
+                ((IProxy)obj).IsDirty = false; //reset change tracking and return
+                list.Add(obj);
             }
-
-            #endregion
-            Tuple<IEnumerable<T>, int> tupleResult = new Tuple<IEnumerable<T>, int>(list, reocrdCount);
-            return tupleResult;
+            return list;
         }
         #endregion
     }
