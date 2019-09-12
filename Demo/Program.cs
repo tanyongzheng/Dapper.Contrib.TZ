@@ -21,15 +21,16 @@ namespace Demo
             //数据库连接字符串
             string ConnectionString = "server=127.0.0.1;user id=sa;password=123456;database=LMS18;";
             var PageSize = 5;
-            var PageIndex = 0;
+            var PageIndex = 1;
             var whereSql = " where CountryId>@id ";
             var dicParms = new Dictionary<string, object>();
-            dicParms.Add("@id", 2);
-            var sortBySql = " order by CountryId desc ";
+            dicParms.Add("@id", 0);
+            var sortBySql = " order by CountryId asc ";
             using (var conn = new SqlConnection(ConnectionString))
             {
                 conn.Open();
                 var pageResult = conn.Pager<CountryEntity>(PageSize, PageIndex, whereSql, sortBySql, dicParms);
+                Console.WriteLine(pageResult.Item2);
             }
         }
         private static void TestSqlite()
