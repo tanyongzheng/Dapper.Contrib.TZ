@@ -820,11 +820,11 @@ namespace Dapper.Contrib.Extensions.TZ
         /// <param name="whereSql">条件sql语句</param>
         /// <param name="sortBy"></param>
         /// <param name="dicParms">sql参数化</param>
-        /// <param name="reocrdCount">返回的总记录数</param>
+        /// <param name="recordCount">返回的总记录数</param>
         /// <param name="transaction">事务</param>
         /// <param name="commandTimeout">超时时间</param>
         /// <returns></returns>
-        public static (IEnumerable<T> list, int reocrdCount) Pager<T>(this IDbConnection connection,
+        public static (IEnumerable<T> list, int recordCount) Pager<T>(this IDbConnection connection,
             int pageSize,
             int pageIndex,
             string whereSql,
@@ -833,7 +833,6 @@ namespace Dapper.Contrib.Extensions.TZ
             IDbTransaction transaction = null,
             int? commandTimeout = null) where T : class
         {
-            int reocrdCount = 0;
             var type = typeof(T);
             var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
 
@@ -842,7 +841,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             #region 总记录数
             var recordSql = pagerSqlResult.recordSql;
-            reocrdCount = connection.QuerySingle<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
+            var recordCount = connection.QuerySingle<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
             #endregion
             #region 分页
             string sql = pagerSqlResult.pagerSql;
@@ -861,7 +860,7 @@ namespace Dapper.Contrib.Extensions.TZ
             }
 
             #endregion
-            (IEnumerable<T> list, int reocrdCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, reocrdCount);
+            (IEnumerable<T> list, int recordCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, recordCount);
             return tupleResult;
         }
 
@@ -876,11 +875,11 @@ namespace Dapper.Contrib.Extensions.TZ
         /// <param name="whereSql">条件sql语句</param>
         /// <param name="sortBy">如按创建时间倒序 CreateTime  Desc</param>
         /// <param name="dicParms">sql参数化</param>
-        /// <param name="reocrdCount">返回的总记录数</param>
+        /// <param name="recordCount">返回的总记录数</param>
         /// <param name="transaction">事务</param>
         /// <param name="commandTimeout">超时时间</param>
         /// <returns></returns>
-        public static async Task<(IEnumerable<T> list, int reocrdCount)> PagerAsync<T>(this IDbConnection connection,
+        public static async Task<(IEnumerable<T> list, int recordCount)> PagerAsync<T>(this IDbConnection connection,
             int pageSize,
             int pageIndex,
             string whereSql,
@@ -889,7 +888,6 @@ namespace Dapper.Contrib.Extensions.TZ
             IDbTransaction transaction = null,
             int? commandTimeout = null) where T : class
         {
-            int reocrdCount = 0;
             var type = typeof(T);
             var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
 
@@ -898,7 +896,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             #region 总记录数
             var recordSql = pagerSqlResult.recordSql;
-            reocrdCount = await connection.QuerySingleAsync<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
+            var recordCount = await connection.QuerySingleAsync<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
             #endregion
 
             #region 分页
@@ -918,7 +916,7 @@ namespace Dapper.Contrib.Extensions.TZ
             }
 
             #endregion
-            (IEnumerable<T> list, int reocrdCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, reocrdCount);
+            (IEnumerable<T> list, int recordCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, recordCount);
             return tupleResult;
         }
         #endregion
@@ -952,7 +950,7 @@ namespace Dapper.Contrib.Extensions.TZ
             dynParms.AddDynamicParams(dicParms);
 
             #region 总记录数
-            var recordSql = $"select count(1) reocrdCount  from {name} {whereSql}";
+            var recordSql = $"select count(1) recordCount  from {name} {whereSql}";
             #endregion
 
             #region 分页
