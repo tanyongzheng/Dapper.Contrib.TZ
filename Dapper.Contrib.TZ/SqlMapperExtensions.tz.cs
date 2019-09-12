@@ -824,7 +824,7 @@ namespace Dapper.Contrib.Extensions.TZ
         /// <param name="transaction">事务</param>
         /// <param name="commandTimeout">超时时间</param>
         /// <returns></returns>
-        public static Tuple<IEnumerable<T>, int> Pager<T>(this IDbConnection connection,
+        public static (IEnumerable<T> list, int reocrdCount) Pager<T>(this IDbConnection connection,
             int pageSize,
             int pageIndex,
             string whereSql,
@@ -861,7 +861,7 @@ namespace Dapper.Contrib.Extensions.TZ
             }
 
             #endregion
-            Tuple<IEnumerable<T>, int> tupleResult = new Tuple<IEnumerable<T>, int>(list, reocrdCount);
+            (IEnumerable<T> list, int reocrdCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, reocrdCount);
             return tupleResult;
         }
 
@@ -880,7 +880,7 @@ namespace Dapper.Contrib.Extensions.TZ
         /// <param name="transaction">事务</param>
         /// <param name="commandTimeout">超时时间</param>
         /// <returns></returns>
-        public static async Task<Tuple<IEnumerable<T>, int>> PagerAsync<T>(this IDbConnection connection,
+        public static async Task<(IEnumerable<T> list, int reocrdCount)> PagerAsync<T>(this IDbConnection connection,
             int pageSize,
             int pageIndex,
             string whereSql,
@@ -918,7 +918,7 @@ namespace Dapper.Contrib.Extensions.TZ
             }
 
             #endregion
-            Tuple<IEnumerable<T>, int> tupleResult = new Tuple<IEnumerable<T>, int>(list, reocrdCount);
+            (IEnumerable<T> list, int reocrdCount) tupleResult = new ValueTuple<IEnumerable<T>, int>(list, reocrdCount);
             return tupleResult;
         }
         #endregion

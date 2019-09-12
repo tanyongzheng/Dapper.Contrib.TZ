@@ -30,6 +30,8 @@ namespace Demo
             {
                 conn.Open();
                 var pageResult = conn.Pager<CountryEntity>(PageSize, PageIndex, whereSql, sortBySql, dicParms);
+                var a = pageResult.Item1;
+                var list = pageResult.list;
                 Console.WriteLine(pageResult.Item2);
             }
         }
