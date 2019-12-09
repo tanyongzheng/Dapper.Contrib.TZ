@@ -1,7 +1,7 @@
-# TZ.DFS
+# Dapper.Contrib.TZ
 
 #### 介绍
-分布式文件系统
+Dapper.Contrib拓展，加入了按条件查找、分页等功能
 
 #### 软件架构
 软件架构说明
