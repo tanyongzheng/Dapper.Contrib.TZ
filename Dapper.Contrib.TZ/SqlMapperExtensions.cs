@@ -6,14 +6,9 @@ using System.Reflection;
 using System.Text;
 using System.Collections.Concurrent;
 using System.Reflection.Emit;
+using System.Threading;
 
 using Dapper;
-
-#if NETSTANDARD1_3
-using DataException = System.InvalidOperationException;
-#else
-using System.Threading;
-#endif
 
 namespace Dapper.Contrib.Extensions.TZ
 {
@@ -153,7 +148,7 @@ namespace Dapper.Contrib.Extensions.TZ
             var explicitKeys = ExplicitKeyPropertiesCache(type);
             var keyCount = keys.Count + explicitKeys.Count;
             if (keyCount > 1)
-                throw new DataException($"{method}<T> only supports an entity with a single [Key] or [ExplicitKey] property");
+                throw new DataException($"{method}<T> only supports an entity with a single [Key] or [ExplicitKey] property. [Key] Count: {keys.Count}, [ExplicitKey] Count: {explicitKeys.Count}");
             if (keyCount == 0)
                 throw new DataException($"{method}<T> only supports an entity with a [Key] or an [ExplicitKey] property");
 
@@ -190,7 +185,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             T obj;
 
-            if (type.IsInterface())
+            if (type.IsInterface)
             {
                 var res = connection.Query(sql, dynParms).FirstOrDefault() as IDictionary<string, object>;
 
@@ -203,7 +198,7 @@ namespace Dapper.Contrib.Extensions.TZ
                 {
                     var val = res[property.Name];
                     if (val == null) continue;
-                    if (property.PropertyType.IsGenericType() && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                     {
                         var genericType = Nullable.GetUnderlyingType(property.PropertyType);
                         if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
@@ -248,7 +243,7 @@ namespace Dapper.Contrib.Extensions.TZ
                 GetQueries[cacheType.TypeHandle] = sql;
             }
 
-            if (!type.IsInterface()) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
+            if (!type.IsInterface) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
 
             var result = connection.Query(sql);
             var list = new List<T>();
@@ -259,7 +254,7 @@ namespace Dapper.Contrib.Extensions.TZ
                 {
                     var val = res[property.Name];
                     if (val == null) continue;
-                    if (property.PropertyType.IsGenericType() && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
                     {
                         var genericType = Nullable.GetUnderlyingType(property.PropertyType);
                         if (genericType != null) property.SetValue(obj, Convert.ChangeType(val, genericType), null);
@@ -290,20 +285,19 @@ namespace Dapper.Contrib.Extensions.TZ
             }
             else
             {
-                //NOTE: This as dynamic trick should be able to handle both our own Table-attribute as well as the one in EntityFramework 
-                var tableAttr = type
-#if NETSTANDARD1_3
-                    .GetTypeInfo()
-#endif
-                    .GetCustomAttributes(false).SingleOrDefault(attr => attr.GetType().Name == "TableAttribute") as dynamic;
-                if (tableAttr != null)
+                //NOTE: This as dynamic trick falls back to handle both our own Table-attribute as well as the one in EntityFramework 
+                var tableAttrName =
+                    type.GetCustomAttribute<TableAttribute>(false)?.Name
+                    ?? (type.GetCustomAttributes(false).FirstOrDefault(attr => attr.GetType().Name == "TableAttribute") as dynamic)?.Name;
+
+                if (tableAttrName != null)
                 {
-                    name = tableAttr.Name;
+                    name = tableAttrName;
                 }
                 else
                 {
                     name = type.Name + "s";
-                    if (type.IsInterface() && name.StartsWith("I"))
+                    if (type.IsInterface && name.StartsWith("I"))
                         name = name.Substring(1);
                 }
             }
@@ -332,11 +326,11 @@ namespace Dapper.Contrib.Extensions.TZ
                 isList = true;
                 type = type.GetElementType();
             }
-            else if (type.IsGenericType())
+            else if (type.IsGenericType)
             {
                 var typeInfo = type.GetTypeInfo();
                 bool implementsGenericIEnumerableOrIsGenericIEnumerable =
-                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType() && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
+                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
                     typeInfo.GetGenericTypeDefinition() == typeof(IEnumerable<>);
 
                 if (implementsGenericIEnumerableOrIsGenericIEnumerable)
@@ -413,11 +407,11 @@ namespace Dapper.Contrib.Extensions.TZ
             {
                 type = type.GetElementType();
             }
-            else if (type.IsGenericType())
+            else if (type.IsGenericType)
             {
                 var typeInfo = type.GetTypeInfo();
                 bool implementsGenericIEnumerableOrIsGenericIEnumerable =
-                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType() && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
+                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
                     typeInfo.GetGenericTypeDefinition() == typeof(IEnumerable<>);
 
                 if (implementsGenericIEnumerableOrIsGenericIEnumerable)
@@ -482,11 +476,11 @@ namespace Dapper.Contrib.Extensions.TZ
             {
                 type = type.GetElementType();
             }
-            else if (type.IsGenericType())
+            else if (type.IsGenericType)
             {
                 var typeInfo = type.GetTypeInfo();
                 bool implementsGenericIEnumerableOrIsGenericIEnumerable =
-                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType() && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
+                    typeInfo.ImplementedInterfaces.Any(ti => ti.IsGenericType && ti.GetGenericTypeDefinition() == typeof(IEnumerable<>)) ||
                     typeInfo.GetGenericTypeDefinition() == typeof(IEnumerable<>);
 
                 if (implementsGenericIEnumerableOrIsGenericIEnumerable)
@@ -547,9 +541,9 @@ namespace Dapper.Contrib.Extensions.TZ
             var name = GetDatabaseType?.Invoke(connection).ToLower()
                        ?? connection.GetType().Name.ToLower();
 
-            return !AdapterDictionary.ContainsKey(name)
-                ? DefaultAdapter
-                : AdapterDictionary[name];
+            return AdapterDictionary.TryGetValue(name, out var adapter)
+                ? adapter
+                : DefaultAdapter;
         }
 
         private static class ProxyGenerator
@@ -558,7 +552,7 @@ namespace Dapper.Contrib.Extensions.TZ
 
             private static AssemblyBuilder GetAsmBuilder(string name)
             {
-#if NETSTANDARD1_3 || NETSTANDARD2_0
+#if NETSTANDARD2_0
                 return AssemblyBuilder.DefineDynamicAssembly(new AssemblyName { Name = name }, AssemblyBuilderAccess.Run);
 #else
                 return Thread.GetDomain().DefineDynamicAssembly(new AssemblyName { Name = name }, AssemblyBuilderAccess.Run);
@@ -593,7 +587,7 @@ namespace Dapper.Contrib.Extensions.TZ
                     CreateProperty<T>(typeBuilder, property.Name, property.PropertyType, setIsDirtyMethod, isId);
                 }
 
-#if NETSTANDARD1_3 || NETSTANDARD2_0
+#if NETSTANDARD2_0
                 var generatedType = typeBuilder.CreateTypeInfo().AsType();
 #else
                 var generatedType = typeBuilder.CreateType();

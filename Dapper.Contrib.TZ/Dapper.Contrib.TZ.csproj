@@ -2,15 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>1.50.5.3</Version>
+    <Version>2.0.30.0</Version>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Description>Dapper.Contrib拓展，加入了按条件查找、分页等功能</Description>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Dapper\TypeExtensions.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CSharp" Version="4.3.0" />

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.IO;
 using Dapper.Contrib.Extensions.TZ;
+using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 
 namespace Demo
