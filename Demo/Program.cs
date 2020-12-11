@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.IO;
 using Dapper.Contrib.Extensions.TZ;
-using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 
 namespace Demo
@@ -11,7 +11,7 @@ namespace Demo
     {
         static void Main(string[] args)
         {
-            TestSqlServer();
+            TestSqlServerBulk();
             Console.ReadKey();
             //Console.WriteLine("Hello World!");
         }
@@ -19,7 +19,7 @@ namespace Demo
         private static void TestSqlServer()
         {
             //数据库连接字符串
-            string ConnectionString = "server=127.0.0.1;user id=sa;password=123456;database=LMS18;";
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
             var PageSize = 5;
             var PageIndex = 1;
             var whereSql = " where CountryId>@id ";
@@ -53,6 +53,42 @@ namespace Demo
             {
                 conn.Open();
                 var pageResult = conn.Pager<UserEntity>(PageSize, PageIndex, whereSql, sortBySql, dicParms);
+            }
+        }
+
+
+
+        private static void TestSqlServerBulk()
+        {
+            //数据库连接字符串
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var tran = conn.BeginTransaction();
+                try
+                {
+
+                    var countryList = new List<CountryEntity>();
+                    for (var i = 0; i < 100; i++)
+                    {
+                        var country = new CountryEntity();
+                        country.CountryId = i + 1;
+                        country.CnName = "国家测试" + i;
+                        countryList.Add(country);
+                    }
+                    var success = conn.BulkInsert(countryList, tran);
+
+                    var country2 = new CountryEntity();
+                    country2.CountryId = 101;
+                    country2.CnName = "国家测试";
+                    var result2 = conn.Insert(country2, tran);
+                    tran.Commit();
+                }
+                catch (Exception ex)
+                {
+                    tran.Rollback();
+                }
             }
         }
     }
@@ -184,5 +220,7 @@ namespace Demo
         public int? IsDeleted { get; set; }
 
 
+        [Write(false)]
+        public string Remark { get; set; }
     }
 }

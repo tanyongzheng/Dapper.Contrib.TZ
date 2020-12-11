@@ -1,0 +1,23 @@
+<Project>
+  <!-- Dapper相关配置 -->
+  <Import Project="dapper.props"></Import>
+
+  <!-- 编译设置 -->
+  <PropertyGroup>
+    <!-- 使用c#最新版本 -->
+    <LangVersion>latest</LangVersion>
+    <!-- 忽略哪些编译警告 -->
+    <NoWarn>$(NoWarn);CS1591;NU1603</NoWarn>
+    <!-- 生成xml注释文件 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Package 相关设置 -->
+  <PropertyGroup>
+    <Version>2.0.35</Version>
+    <PackageIconUrl></PackageIconUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl></RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

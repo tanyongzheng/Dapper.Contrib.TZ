@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Dapper.ProviderTools;
 
 namespace Dapper.Contrib.Extensions.TZ
 {
@@ -1047,6 +1050,211 @@ namespace Dapper.Contrib.Extensions.TZ
             }
             return list;
         }
+        #endregion
+
+        #region 批量操作
+
+        
+        public static bool BulkInsert2<T>(this DbConnection connection, List<T> list) where T : class
+        {
+            var dt = ConvertEntityListToDataTable(list);
+            using var bcp = BulkCopy.TryCreate(connection);
+            try
+            {
+                bcp.DestinationTableName = dt.TableName;
+                bcp.WriteToServer(dt);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            return true;
+        }
+        
+
+        public static bool BulkInsert<T>(this DbConnection connection, List<T> list, IDbTransaction transaction = null, int? commandTimeout = null) where T : class
+        {
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+            if (databaseTypeName == "sqlconnection")
+            {
+                return BulkInsertSqlServer(connection, list, transaction, commandTimeout);
+            }
+            else if (databaseTypeName == "mysqlconnection")
+            {
+                throw new Exception("暂不支持MySql数据库");
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库");
+            }
+            else
+            {
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
+            }
+
+            return false;
+        }
+        public static async Task<bool> BulkInsertAsync<T>(this DbConnection connection, List<T> list, IDbTransaction transaction = null, int? commandTimeout = null) where T : class
+        {
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+            if (databaseTypeName == "sqlconnection")
+            {
+                return await BulkInsertSqlServerAsync(connection, list, transaction, commandTimeout);
+            }
+            else if (databaseTypeName == "mysqlconnection")
+            {
+                throw new Exception("暂不支持MySql数据库");
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库");
+            }
+            else
+            {
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
+            }
+
+            return false;
+        }
+
+        #region private method
+        private static async Task<bool> BulkInsertSqlServerAsync<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
+       int? commandTimeout = null) where T : class
+        {
+            var dt = ConvertEntityListToDataTable(list);
+
+            SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
+            SqlBulkCopy sqlBulkCopy;
+            if (transaction == null)
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection);
+            }
+            else
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection, options, (SqlTransaction)transaction);
+            }
+
+            //设置数据库表名
+            sqlBulkCopy.DestinationTableName = dt.TableName;
+            //copy.BatchSize = 0;
+            if (commandTimeout.HasValue && commandTimeout.Value > 0)
+                sqlBulkCopy.BulkCopyTimeout = commandTimeout.Value;
+
+            await sqlBulkCopy.WriteToServerAsync(dt);
+
+            if (transaction == null)
+            {
+                sqlBulkCopy.Close();
+            }
+            return true;
+        }
+
+
+        private static bool BulkInsertSqlServer<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
+            int? commandTimeout = null) where T : class
+        {
+            var dt = ConvertEntityListToDataTable(list);
+
+            SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
+            SqlBulkCopy sqlBulkCopy;
+            if (transaction == null)
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection);
+            }
+            else
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection, options, (SqlTransaction)transaction);
+            }
+
+            //设置数据库表名
+            sqlBulkCopy.DestinationTableName = dt.TableName;
+            //copy.BatchSize = 0;
+            if (commandTimeout.HasValue && commandTimeout.Value > 0)
+                sqlBulkCopy.BulkCopyTimeout = commandTimeout.Value;
+
+            sqlBulkCopy.WriteToServer(dt);
+
+            if (transaction == null)
+            {
+                sqlBulkCopy.Close();
+            }
+            return true;
+        }
+
+        private static DataTable ConvertEntityListToDataTable<T>(List<T> list) where T : class
+        {
+            var dt = new DataTable();
+
+            #region 构建DataTable
+
+            var type = typeof(T);
+
+            var name = GetTableName(type);
+            var allProperties = TypePropertiesCache(type);
+            var keyProperties = KeyPropertiesCache(type);
+            var explicitKeyProperties = ExplicitKeyPropertiesCache(type);
+            var computedProperties = ComputedPropertiesCache(type);
+            var allPropertiesExceptKeyAndComputed = allProperties.Except(keyProperties.Union(computedProperties)).ToList();
+
+            for (var i = 0; i < keyProperties.Count; i++)
+            {
+                var property = keyProperties[i];
+                dt.Columns.Add(property.Name);
+            }
+            for (var i = 0; i < allPropertiesExceptKeyAndComputed.Count; i++)
+            {
+                var property = allPropertiesExceptKeyAndComputed[i];
+                dt.Columns.Add(property.Name);
+            }
+            foreach (var entityToInsert in list)
+            {
+                var row = dt.NewRow();
+                for (var i = 0; i < keyProperties.Count; i++)
+                {
+                    var property = keyProperties[i];
+                    row[property.Name] = property.GetValue(entityToInsert, null) ?? DBNull.Value;
+                }
+                for (var i = 0; i < allPropertiesExceptKeyAndComputed.Count; i++)
+                {
+                    var property = allPropertiesExceptKeyAndComputed[i];
+                    row[property.Name] = property.GetValue(entityToInsert, null) ?? DBNull.Value;
+                }
+                dt.Rows.Add(row);
+            }
+            #endregion
+
+            dt.TableName = name;
+            return dt;
+        } 
+        #endregion
+
         #endregion
     }
 }
