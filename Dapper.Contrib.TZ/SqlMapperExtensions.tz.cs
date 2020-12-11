@@ -1219,15 +1219,10 @@ namespace Dapper.Contrib.Extensions.TZ
             var name = GetTableName(type);
             var allProperties = TypePropertiesCache(type);
             var keyProperties = KeyPropertiesCache(type);
-            var explicitKeyProperties = ExplicitKeyPropertiesCache(type);
+            //var explicitKeyProperties = ExplicitKeyPropertiesCache(type);
             var computedProperties = ComputedPropertiesCache(type);
             var allPropertiesExceptKeyAndComputed = allProperties.Except(keyProperties.Union(computedProperties)).ToList();
-
-            for (var i = 0; i < keyProperties.Count; i++)
-            {
-                var property = keyProperties[i];
-                dt.Columns.Add(property.Name);
-            }
+            
             for (var i = 0; i < allPropertiesExceptKeyAndComputed.Count; i++)
             {
                 var property = allPropertiesExceptKeyAndComputed[i];
