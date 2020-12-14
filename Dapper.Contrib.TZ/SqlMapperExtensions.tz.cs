@@ -1057,7 +1057,7 @@ namespace Dapper.Contrib.Extensions.TZ
         
         public static bool BulkInsert2<T>(this DbConnection connection, List<T> list) where T : class
         {
-            var dt = ConvertEntityListToDataTable(list);
+            var dt = ConvertEntityListToDataTable(list,connection);
             using var bcp = BulkCopy.TryCreate(connection);
             try
             {
@@ -1148,7 +1148,7 @@ namespace Dapper.Contrib.Extensions.TZ
         private static async Task<bool> BulkInsertSqlServerAsync<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
        int? commandTimeout = null) where T : class
         {
-            var dt = ConvertEntityListToDataTable(list);
+            var dt = ConvertEntityListToDataTable(list,connection,transaction);
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1180,7 +1180,7 @@ namespace Dapper.Contrib.Extensions.TZ
         private static bool BulkInsertSqlServer<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
             int? commandTimeout = null) where T : class
         {
-            var dt = ConvertEntityListToDataTable(list);
+            var dt = ConvertEntityListToDataTable(list,connection,transaction);
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1208,7 +1208,7 @@ namespace Dapper.Contrib.Extensions.TZ
             return true;
         }
 
-        private static DataTable ConvertEntityListToDataTable<T>(List<T> list) where T : class
+        private static DataTable ConvertEntityListToDataTable<T>(List<T> list,DbConnection connection, IDbTransaction transaction = null) where T : class
         {
             var dt = new DataTable();
 
@@ -1223,19 +1223,41 @@ namespace Dapper.Contrib.Extensions.TZ
             var computedProperties = ComputedPropertiesCache(type);
             var allPropertiesExceptKeyAndComputed = allProperties.Except(keyProperties.Union(computedProperties)).ToList();
             
+            /*
             for (var i = 0; i < allPropertiesExceptKeyAndComputed.Count; i++)
             {
                 var property = allPropertiesExceptKeyAndComputed[i];
                 dt.Columns.Add(property.Name);
             }
+
+            //自增字段
+            for (var i = 0; i < keyProperties.Count; i++)
+            {
+                var property = keyProperties[i];
+                dt.Columns.Add(property.Name);
+            }
+            */
+
+            #region 获取表字段顺序
+            var dataReader = connection.ExecuteReader($"select top 0 * from {name}",null,transaction);
+            dt.Load(dataReader);
+            #endregion
+
             foreach (var entityToInsert in list)
             {
                 var row = dt.NewRow();
+                //自增字段设置为0
                 for (var i = 0; i < keyProperties.Count; i++)
                 {
                     var property = keyProperties[i];
-                    row[property.Name] = property.GetValue(entityToInsert, null) ?? DBNull.Value;
+                    if (property.PropertyType==typeof(int))
+                        row[property.Name] = 0;
+                    else if (property.PropertyType==typeof(long))
+                        row[property.Name] = 0;
+                    else
+                        row[property.Name] = property.GetValue(entityToInsert, null) ?? DBNull.Value;
                 }
+                
                 for (var i = 0; i < allPropertiesExceptKeyAndComputed.Count; i++)
                 {
                     var property = allPropertiesExceptKeyAndComputed[i];

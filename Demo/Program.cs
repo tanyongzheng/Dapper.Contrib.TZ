@@ -75,6 +75,8 @@ namespace Demo
                         var country = new CountryEntity();
                         country.CountryId = i + 1;
                         country.CnName = "国家测试" + i;
+                        country.IsDeleted = 0;
+                        country.Latitude = 1.234M;
                         countryList.Add(country);
                     }
                     var success = conn.BulkInsert(countryList, tran);
@@ -115,6 +117,8 @@ namespace Demo
         /// CountryId
         /// </summary>
         [ExplicitKey]
+        //[Key]
+        //[Write(false)]
         public long CountryId { get; set; }
 
         /// <summary>
@@ -128,12 +132,6 @@ namespace Demo
         /// </summary>
 
         public string TrdCode { get; set; }
-
-        /// <summary>
-        /// CnName
-        /// </summary>
-
-        public string CnName { get; set; }
 
         /// <summary>
         /// Pingyin
@@ -222,5 +220,14 @@ namespace Demo
 
         [Write(false)]
         public string Remark { get; set; }
+
+        [Write(false)]
+        public int LogId { get; set; }
+
+        /// <summary>
+        /// CnName
+        /// </summary>
+
+        public string CnName { get; set; }
     }
 }
