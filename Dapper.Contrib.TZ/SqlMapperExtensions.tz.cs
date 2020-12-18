@@ -984,10 +984,16 @@ namespace Dapper.Contrib.Extensions.TZ
             var sql = "";
             if (databaseTypeName == "sqlconnection")
             {
+                //不再支持Sql Server 2008及以下版本的ROW_NUMBER分页
+                /*
                 sql =
                 $@"SELECT * FROM(
                                     SELECT ROW_NUMBER() OVER ({sortBy}) AS tempid, * FROM {"(" + selectQuery + ") t "} WHERE 1=1
                                 ) AS tempTableName WHERE tempid BETWEEN {startLimit} AND {pageIndex * pageSize}";
+                */
+
+                //Sql Server 2012及以上使用offset fetch分页
+                sql = $"{selectQuery}  {sortBy}  offset {(pageIndex*pageSize)} rows fetch next {pageSize} rows only ";
             }
             else if (databaseTypeName == "mysqlconnection")
             {

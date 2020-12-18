@@ -11,7 +11,8 @@ namespace Demo
     {
         static void Main(string[] args)
         {
-            TestSqlServerBulk();
+            TestSqlServer();
+            //TestSqlServerBulk();
             Console.ReadKey();
             //Console.WriteLine("Hello World!");
         }
