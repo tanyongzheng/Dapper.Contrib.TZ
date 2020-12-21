@@ -14,10 +14,14 @@
 
   <!-- Package 相关设置 -->
   <PropertyGroup>
-    <Version>2.0.35.2</Version>
+    <Version>2.0.35.4</Version>
     <PackageIconUrl></PackageIconUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl></RepositoryUrl>
+	  <ReleaseNotes>
+		  更新内容：
+		  1.使用offset fetch分页，不再支持Sql Server 2008及以下版本的ROW_NUMBER分页
+	  </ReleaseNotes>
   </PropertyGroup>
 
 </Project>

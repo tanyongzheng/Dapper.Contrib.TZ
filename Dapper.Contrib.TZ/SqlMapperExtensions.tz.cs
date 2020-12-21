@@ -993,7 +993,9 @@ namespace Dapper.Contrib.Extensions.TZ
                 */
 
                 //Sql Server 2012及以上使用offset fetch分页
-                sql = $"{selectQuery}  {sortBy}  offset {(pageIndex*pageSize)} rows fetch next {pageSize} rows only ";
+                //前端页面pageIndex是从1开始
+                var offsetCount = (pageIndex - 1) * pageSize;
+                sql = $"{selectQuery}  {sortBy}  offset {offsetCount} rows fetch next {pageSize} rows only ";
             }
             else if (databaseTypeName == "mysqlconnection")
             {
