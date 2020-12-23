@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+using System.Threading.Tasks;
 using Dapper.Contrib.Extensions.TZ;
 using Microsoft.Data.Sqlite;
 
@@ -9,10 +10,11 @@ namespace Demo
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            TestSqlServer();
+            //TestSqlServer();
             //TestSqlServerBulk();
+            await TestSqlServerDelete();
             Console.ReadKey();
             //Console.WriteLine("Hello World!");
         }
@@ -94,6 +96,20 @@ namespace Demo
                 }
             }
         }
+
+        private static async Task TestSqlServerDelete()
+        {
+            //数据库连接字符串
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var tran = conn.BeginTransaction();
+                await conn.DeleteAsync<CountryEntity>(1, tran);
+                tran.Commit();
+            }
+        }
+
     }
 
 
@@ -231,4 +247,6 @@ namespace Demo
 
         public string CnName { get; set; }
     }
+
+
 }

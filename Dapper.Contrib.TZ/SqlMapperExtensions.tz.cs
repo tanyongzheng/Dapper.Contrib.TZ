@@ -446,7 +446,6 @@ namespace Dapper.Contrib.Extensions.TZ
                 throw new ArgumentException("Entity must have at least one [Key] or [ExplicitKey] property");
 
             var name = GetTableName(type);
-            keyProperties.AddRange(explicitKeyProperties);
 
             var sb = new StringBuilder();
             var key = GetSingleKey<T>(nameof(Delete));
@@ -493,7 +492,6 @@ namespace Dapper.Contrib.Extensions.TZ
                 throw new ArgumentException("Entity must have at least one [Key] or [ExplicitKey] property");
 
             var name = GetTableName(type);
-            keyProperties.AddRange(explicitKeyProperties);
 
             var sb = new StringBuilder();
             var key = GetSingleKey<T>(nameof(Delete));
