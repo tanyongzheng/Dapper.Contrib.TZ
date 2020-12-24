@@ -329,7 +329,7 @@ namespace Dapper.Contrib.Extensions.TZ
                 for (var i = 0; i < keyProperties.Count; i++)
                 {
                     var property = keyProperties[i];
-                    adapter.AppendColumnNameEqualsValue(sb, property.Name); //fix for issue #336
+                    adapter.AppendColumnNameEqualsValue(sb, property.Name);  //fix for issue #336
                     if (i < keyProperties.Count - 1)
                         sb.Append(" and ");
                 }
@@ -379,7 +379,7 @@ namespace Dapper.Contrib.Extensions.TZ
                 throw new ArgumentException("Entity must have at least one [Key] or [ExplicitKey] property");
 
             var name = GetTableName(type);
-            keyProperties.AddRange(explicitKeyProperties);
+            var allKeyProperties = keyProperties.Concat(explicitKeyProperties).ToList();
 
             var sb = new StringBuilder();
             //自定义条件
@@ -396,11 +396,13 @@ namespace Dapper.Contrib.Extensions.TZ
             {
                 sb.AppendFormat("DELETE FROM {0} WHERE ", name);
 
-                for (var i = 0; i < keyProperties.Count; i++)
+                var adapter = GetFormatter(connection);
+
+                for (var i = 0; i < allKeyProperties.Count; i++)
                 {
-                    var property = keyProperties[i];
-                    sb.AppendFormat("{0} = @{1}", property.Name, property.Name);
-                    if (i < keyProperties.Count - 1)
+                    var property = allKeyProperties[i];
+                    adapter.AppendColumnNameEqualsValue(sb, property.Name);
+                    if (i < allKeyProperties.Count - 1)
                         sb.Append(" AND ");
                 }
             }
