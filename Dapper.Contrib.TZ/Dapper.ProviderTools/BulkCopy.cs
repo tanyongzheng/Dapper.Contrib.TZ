@@ -7,13 +7,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper.ProviderTools.Internal;
-#nullable enable
+
 namespace Dapper.ProviderTools
 {
     /// <summary>
     /// Provides provider-agnostic access to bulk-copy services
     /// </summary>
-    public abstract partial class BulkCopy : IDisposable
+    public abstract class BulkCopy : IDisposable
     {
         /// <summary>
         /// Attempt to create a BulkCopy instance for the connection provided
@@ -136,7 +136,11 @@ namespace Dapper.ProviderTools
         /// <summary>
         /// Release any resources associated with this instance
         /// </summary>
-        public void Dispose() => Dispose(true);
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
         /// <summary>
         /// Release any resources associated with this instance

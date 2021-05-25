@@ -14,13 +14,13 @@
 
   <!-- Package 相关设置 -->
   <PropertyGroup>
-    <Version>2.0.35.6</Version>
+    <Version>2.0.90</Version>
     <PackageIconUrl></PackageIconUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl></RepositoryUrl>
 	  <ReleaseNotes>
 		  更新内容：
-		  1.修复按条件删除ExplicitKey添加到Key缓存错误
+		  1.升级到2.0.90
 	  </ReleaseNotes>
   </PropertyGroup>
 

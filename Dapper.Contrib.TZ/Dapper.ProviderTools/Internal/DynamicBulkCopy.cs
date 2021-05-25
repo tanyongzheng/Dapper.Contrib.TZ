@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 #nullable enable
 namespace Dapper.ProviderTools.Internal
 {
-    internal sealed partial class DynamicBulkCopy : BulkCopy
+    internal sealed class DynamicBulkCopy : BulkCopy
     {
         internal static BulkCopy? Create(object? wrapped)
             => wrapped == null ? null : new DynamicBulkCopy(wrapped);
