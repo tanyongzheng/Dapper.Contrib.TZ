@@ -837,18 +837,28 @@ namespace Dapper.Contrib.Extensions.TZ
             int? commandTimeout = null) where T : class
         {
             var type = typeof(T);
-            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
-
-            //自定义参数
-            var dynParms = pagerSqlResult.dynParms;
 
             #region 总记录数
-            var recordSql = pagerSqlResult.recordSql;
-            var recordCount = connection.QuerySingle<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
+            var recordSql = GetRecordSql<T>(connection, pageSize, pageIndex, whereSql, sortBy);
+
+            //自定义参数
+            var recordDynParms = new DynamicParameters();
+            recordDynParms.AddDynamicParams(dicParms);
+            var recordCount = connection.QuerySingle<int>(recordSql, recordDynParms, transaction, commandTimeout: commandTimeout);
             #endregion
-            #region 分页
-            string sql = pagerSqlResult.pagerSql;
+
             List<T> list;
+            if (recordCount == 0)
+            {
+                list = new List<T>();
+                return new ValueTuple<IEnumerable<T>, int>(list, recordCount);
+            }
+            #region 分页
+
+            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms,recordCount);
+            //自定义参数
+            var dynParms = pagerSqlResult.dynParms;
+            string sql = pagerSqlResult.pagerSql;
             //if (!type.IsInterface) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
             if (!type.IsInterface)
             {
@@ -892,19 +902,29 @@ namespace Dapper.Contrib.Extensions.TZ
             int? commandTimeout = null) where T : class
         {
             var type = typeof(T);
-            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms);
+
+            #region 总记录数
+            var recordSql = GetRecordSql<T>(connection, pageSize, pageIndex, whereSql, sortBy);
+
+            //自定义参数
+            var recordDynParms = new DynamicParameters();
+            recordDynParms.AddDynamicParams(dicParms);
+            var recordCount = await connection.QuerySingleAsync<int>(recordSql, recordDynParms, transaction, commandTimeout: commandTimeout);
+            #endregion
+
+            List<T> list;
+            if (recordCount == 0)
+            {
+                list = new List<T>();
+                return new ValueTuple<IEnumerable<T>, int>(list, recordCount);
+            }
+
+            #region 分页
+            var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms,recordCount);
 
             //自定义参数
             var dynParms = pagerSqlResult.dynParms;
-
-            #region 总记录数
-            var recordSql = pagerSqlResult.recordSql;
-            var recordCount = await connection.QuerySingleAsync<int>(recordSql, dynParms, transaction, commandTimeout: commandTimeout);
-            #endregion
-
-            #region 分页
             string sql = pagerSqlResult.pagerSql;
-            List<T> list;
             //if (!type.IsInterface) return connection.Query<T>(sql, null, transaction, commandTimeout: commandTimeout);
             if (!type.IsInterface)
             {
@@ -1027,6 +1047,162 @@ namespace Dapper.Contrib.Extensions.TZ
             result.pagerSql = sql;
             result.dynParms = dynParms;
             return result;
+        }
+
+              
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="connection"></param>
+        /// <param name="pageSize"></param>
+        /// <param name="pageIndex">第几页，从1开始</param>
+        /// <param name="whereSql"></param>
+        /// <param name="sortBy"></param>
+        /// <param name="dicParms"></param>
+        /// <param name="recordCount"></param>
+        /// <returns></returns>
+        private static (string pagerSql, DynamicParameters dynParms) GetPagerSql<T>(IDbConnection connection, 
+            int pageSize,
+            int pageIndex,
+            string whereSql,
+            string sortBy,
+            Dictionary<string, object> dicParms,
+            int recordCount
+            ) where T : class
+        {
+            (string pagerSql,DynamicParameters dynParms) result = new ValueTuple<string,DynamicParameters>();
+            var type = typeof(T);
+
+            //去掉缓存的sql语句
+            var name = GetTableName(type);
+            //自定义条件
+            if (!string.IsNullOrEmpty(whereSql))
+            {
+                if (!whereSql.ToLower().Contains("where"))
+                {
+                    whereSql = " where " + whereSql;
+                }
+            }
+
+            //自定义参数
+            var dynParms = new DynamicParameters();
+            dynParms.AddDynamicParams(dicParms);
+
+            #region 分页
+            int startLimit = 1;
+            if (pageIndex < 0)
+            {
+                pageIndex = 0;
+            }
+            if (pageSize > 0)
+            {
+                startLimit = (pageIndex - 1) * pageSize + 1;
+            }
+
+            var selectQuery = $"select * from {name} {whereSql}";
+            //默认id来排序
+            if (string.IsNullOrEmpty(sortBy))
+            {
+                var key = GetSingleKey<T>(nameof(Pager));
+                sortBy = key.Name;
+            }
+            //排序
+            if (!string.IsNullOrEmpty(sortBy) && !sortBy.ToLower().Contains("order ") && !sortBy.ToLower().Contains(" by"))
+            {
+                sortBy = " order by " + sortBy;
+            }
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+            var sql = "";
+            if (databaseTypeName == "sqlconnection")
+            {
+                //不再支持Sql Server 2008及以下版本的ROW_NUMBER分页
+                /*
+                sql =
+                $@"SELECT * FROM(
+                                    SELECT ROW_NUMBER() OVER ({sortBy}) AS tempid, * FROM {"(" + selectQuery + ") t "} WHERE 1=1
+                                ) AS tempTableName WHERE tempid BETWEEN {startLimit} AND {pageIndex * pageSize}";
+                */
+
+                //Sql Server 2012及以上使用offset fetch分页
+                //前端页面pageIndex是从1开始
+                var offsetCount = (pageIndex - 1) * pageSize;
+
+                // 跳过的记录数
+                var skipRecordCount = (pageIndex - 1) * pageSize;
+
+                // 剩余记录数
+                var remainingRecordCount = recordCount - skipRecordCount;
+
+                // 取出的数量
+                var tackRecordCount = pageSize;
+
+                // 剩余记录数小于每页的数量
+                if (remainingRecordCount < pageSize)
+                {
+                    tackRecordCount = remainingRecordCount;
+                }
+
+                sql = $"{selectQuery}  {sortBy}  offset {offsetCount} rows fetch next {tackRecordCount} rows only ";
+            }
+            else if (databaseTypeName == "mysqlconnection")
+            {
+                sql = $"select * from {name}  limit {pageIndex * pageSize} , {pageSize} {sortBy} {whereSql} ";
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+                sql = $"select  *  from  {name}  {whereSql}  {sortBy} limit {pageSize} OFFSET {pageIndex * pageSize} ";
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库分页");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库分页");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库分页");
+            }
+            else
+            {
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库分页");
+            }
+            #endregion
+
+            result.pagerSql = sql;
+            result.dynParms = dynParms;
+            return result;
+        }
+
+        private static string GetRecordSql<T>(IDbConnection connection, 
+            int pageSize,
+            int pageIndex,
+            string whereSql,
+            string sortBy
+            ) where T : class
+        {
+            var type = typeof(T);
+
+            //去掉缓存的sql语句
+            var name = GetTableName(type);
+            //自定义条件
+            if (!string.IsNullOrEmpty(whereSql))
+            {
+                if (!whereSql.ToLower().Contains("where"))
+                {
+                    whereSql = " where " + whereSql;
+                }
+            }
+
+            #region 总记录数
+            var recordSql = $"select count(1) recordCount  from {name} {whereSql}";
+            #endregion
+
+            return recordSql;
         }
 
         
