@@ -853,6 +853,13 @@ namespace Dapper.Contrib.Extensions.TZ
                 list = new List<T>();
                 return new ValueTuple<IEnumerable<T>, int>(list, recordCount);
             }
+
+            int totalPage = (recordCount + pageSize - 1) / pageSize;
+            // 超出总页数的，页数设置为最后一页
+            if (pageIndex > totalPage)
+            {
+                pageIndex = totalPage;
+            }
             #region 分页
 
             var pagerSqlResult = GetPagerSql<T>(connection, pageSize, pageIndex, whereSql, sortBy, dicParms,recordCount);
@@ -917,6 +924,13 @@ namespace Dapper.Contrib.Extensions.TZ
             {
                 list = new List<T>();
                 return new ValueTuple<IEnumerable<T>, int>(list, recordCount);
+            }
+
+            int totalPage = (recordCount + pageSize - 1) / pageSize;
+            // 超出总页数的，页数设置为最后一页
+            if (pageIndex > totalPage)
+            {
+                pageIndex = totalPage;
             }
 
             #region 分页
