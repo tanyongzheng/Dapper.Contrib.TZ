@@ -1342,6 +1342,115 @@ namespace Dapper.Contrib.Extensions.TZ
             return false;
         }
 
+
+        public static async Task<bool> BulkUpdateAsync<T>(this DbConnection connection, List<T> list, string[] updateProps, IDbTransaction transaction = null, int? commandTimeout = null) where T : class
+        {
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+
+            if (databaseTypeName == "sqlconnection")
+            {
+                
+            }
+            else if (databaseTypeName == "mysqlconnection")
+            {
+                throw new Exception("暂不支持MySql数据库");
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库");
+            }
+            else
+            {
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
+            }
+
+            var type = typeof(T);
+
+            // 自动主键
+            var keyProperties = KeyPropertiesCache(type).ToList();
+            // 非自增主键
+            var explicitKeyProperties = ExplicitKeyPropertiesCache(type);
+            if (keyProperties.Count == 0 && explicitKeyProperties.Count == 0)
+                throw new ArgumentException("Entity must have at least one [Key] or [ExplicitKey] property");
+
+            keyProperties.AddRange(explicitKeyProperties);
+
+            var tableName = GetTableName(type);
+
+            // 创建临时表 (注意：临时表需要在同一个连接内才能访问)
+
+            var tempTableName = @"#TmpTable" + tableName;
+            var createTmpTableSql = $"select  top 0  * into {tempTableName} from {tableName} where 1!=1 ; ";
+            await connection.ExecuteAsync(createTmpTableSql,null, transaction);
+
+            #region // 批量插入数据到临时表
+            var dt = ConvertEntityListToDataTable(list, connection, transaction);
+            dt.TableName = tempTableName;
+
+            SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
+            SqlBulkCopy sqlBulkCopy;
+            if (transaction == null)
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection);
+            }
+            else
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection, options, (SqlTransaction)transaction);
+            }
+
+            //设置数据库表名
+            sqlBulkCopy.DestinationTableName = dt.TableName;
+            if (commandTimeout.HasValue && commandTimeout.Value > 0)
+                sqlBulkCopy.BulkCopyTimeout = commandTimeout.Value;
+
+            await sqlBulkCopy.WriteToServerAsync(dt);
+
+            if (transaction == null)
+            {
+                sqlBulkCopy.Close();
+            }
+            #endregion
+
+            // 通过Id关联临时表更新数据
+            var updatePropsSql = "";
+            foreach(var item in updateProps)
+            {
+                updatePropsSql += $" {item}= tmp.{item} ,";
+            }
+            updatePropsSql = updatePropsSql.TrimEnd(',');
+
+            var relationPropSql = "";
+
+            for (var i = 0; i < keyProperties.Count; i++)
+            {
+                var property = keyProperties[i];
+                if (i > 0) relationPropSql += " and ";
+                relationPropSql += $" tb.{property.Name}=tmp.{property.Name} ";
+            }
+
+            var updateSql = $" update {tableName} set {updatePropsSql} from {tableName} tb inner join {tempTableName} tmp on {relationPropSql} ; ";
+
+            await connection.ExecuteAsync(updateSql,null, transaction);
+
+            // 删除临时表
+            var deleteTemTableSql = $" drop table {tempTableName} ; ";
+            await connection.ExecuteAsync(deleteTemTableSql,null, transaction);
+            return true;
+        }
+
         #region private method
         private static async Task<bool> BulkInsertSqlServerAsync<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
        int? commandTimeout = null) where T : class

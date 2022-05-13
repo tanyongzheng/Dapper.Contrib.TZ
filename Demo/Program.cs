@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Dapper;
 using Dapper.Contrib.Extensions.TZ;
 using Microsoft.Data.Sqlite;
 
@@ -13,8 +15,10 @@ namespace Demo
         static async Task Main(string[] args)
         {
             //TestSqlServer();
-            //TestSqlServerBulk();
-            await TestSqlServerDelete();
+            //await CreateCountryTable();
+            //await TestSqlServerBulk();
+            await TestSqlServerBulkUpdate();
+            //await TestSqlServerDelete();
             Console.ReadKey();
             //Console.WriteLine("Hello World!");
         }
@@ -61,7 +65,7 @@ namespace Demo
 
 
 
-        private static void TestSqlServerBulk()
+        private static async Task TestSqlServerBulk()
         {
             //数据库连接字符串
             string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
@@ -82,10 +86,68 @@ namespace Demo
                         country.Latitude = 1.234M;
                         countryList.Add(country);
                     }
-                    var success = conn.BulkInsert(countryList, tran);
+                    var success = await conn.BulkInsertAsync(countryList, tran);
 
                     var country2 = new CountryEntity();
                     country2.CountryId = 101;
+                    country2.CnName = "国家测试";
+                    var result2 = await conn.InsertAsync(country2, tran);
+                    tran.Commit();
+                }
+                catch (Exception ex)
+                {
+                    tran.Rollback();
+                }
+            }
+        }
+
+
+        private static async Task TestSqlServerBulkUpdate()
+        {
+            //数据库连接字符串
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
+            List<CountryEntity> countryList = null;
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var sortBySql = " order by CountryId asc ";
+                Dictionary<string, object> dicParms = new Dictionary<string, object>();
+                dicParms.Add("@id", 100);
+                var countryList1 = await conn.GetAllAsync<CountryEntity>(" where CountryId<=@id ", dicParms, sortBySql);
+                countryList = countryList1.ToList();
+
+                for (var i = 0; i < countryList.Count; i++)
+                {
+                    countryList[i].CnAlias = "国家别名测试" + countryList[i].CountryId;
+                    countryList[i].CnName = "国家测试-" + countryList[i].CountryId;
+                }
+            }
+            
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var tran = conn.BeginTransaction();
+                try
+                {
+                    /*
+                    var countryList = new List<CountryEntity>();
+                    for (var i = 0; i < 100; i++)
+                    {
+                        var country = new CountryEntity();
+                        country.CountryId = i + 1;
+                        country.CnName = "国家测试" + i;
+                        country.IsDeleted = 0;
+                        country.Latitude = 1.234M;
+                        country.CnAlias = "国家别名测试" + i;
+                        countryList.Add(country);
+                    }
+                    */
+                    
+                    var updateProps = new string[] { nameof(CountryEntity.CnAlias),nameof(CountryEntity.CnName) };
+                    var success = await conn.BulkUpdateAsync(countryList, updateProps, tran);
+
+                    var country2 = new CountryEntity();
+                    country2.CountryId = 103;
                     country2.CnName = "国家测试";
                     var result2 = conn.Insert(country2, tran);
                     tran.Commit();
@@ -106,6 +168,45 @@ namespace Demo
                 conn.Open();
                 var tran = conn.BeginTransaction();
                 await conn.DeleteAsync<CountryEntity>(1, tran);
+                tran.Commit();
+            }
+        }
+
+        private static async Task CreateCountryTable()
+        {
+            var sql = @"
+CREATE TABLE [dbo].[pub_Country](
+	[CountryId] [int] NOT NULL,
+	[CountryCode] [nvarchar](20) NULL,
+	[TrdCode] [nvarchar](10) NULL,
+	[CnName] [nvarchar](50) NULL,
+	[Pingyin] [nvarchar](200) NULL,
+	[IndexCode] [nvarchar](20) NULL,
+	[CnAlias] [nvarchar](50) NULL,
+	[EnName] [nvarchar](100) NULL,
+	[EnAlias] [nvarchar](4000) NULL,
+	[Continent] [nvarchar](80) NULL,
+	[PhoneCode] [nvarchar](10) NULL,
+	[TimeLag] [int] NULL,
+	[Longitude] [decimal](15, 4) NULL,
+	[Latitude] [decimal](15, 4) NULL,
+	[DisplayOrder] [int] NULL,
+	[IsHot] [int] NULL,
+	[Status] [int] NULL,
+	[IsDeleted] [int] NULL,
+ CONSTRAINT [PK9_1] PRIMARY KEY NONCLUSTERED 
+(
+	[CountryId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]";
+
+            //数据库连接字符串
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var tran = conn.BeginTransaction();
+                await conn.ExecuteAsync(sql,null,tran);
                 tran.Commit();
             }
         }
