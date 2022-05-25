@@ -1451,6 +1451,129 @@ namespace Dapper.Contrib.Extensions.TZ
             return true;
         }
 
+        public static async Task<IEnumerable<T>> BulkGetAsync<T>(
+            this IDbConnection connection,
+            string whereSql, 
+            Dictionary<string, object> dicParms,
+            KeyValuePair<string, List<object>> queryPropList,
+            string sortBy = null,
+            IDbTransaction transaction = null,
+            int? commandTimeout = null) 
+            where T : class
+        {
+            //数据库类型名称
+            var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
+                                   ?? connection.GetType().Name.ToLower();
+
+            if (databaseTypeName == "sqlconnection")
+            {
+
+            }
+            else if (databaseTypeName == "mysqlconnection")
+            {
+                throw new Exception("暂不支持MySql数据库");
+            }
+            else if (databaseTypeName == "sqliteconnection")
+            {
+            }
+            else if (databaseTypeName == "sqlceconnection")
+            {
+                throw new Exception("暂不支持SqlCE数据库");
+            }
+            else if (databaseTypeName == "npgsqlconnection")
+            {
+                throw new Exception("暂不支持PostgreSQL数据库");
+            }
+            else if (databaseTypeName == "fbconnection")
+            {
+                throw new Exception("暂不支持Firebird数据库");
+            }
+            else
+            {
+                throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
+            }
+
+            var queryColumnName = queryPropList.Key;
+            var queryColumnTempName = queryColumnName + "_TempColumn";
+            var type = typeof(T);
+
+            var tableName = GetTableName(type);
+
+            // 创建临时表 (注意：临时表需要在同一个连接内才能访问)
+
+            var tempTableName = @"#TmpTable" + tableName+"_"+queryPropList.Key;
+
+            var createTmpTableSql = $"select  top 0  {queryColumnName} {queryColumnTempName} into {tempTableName} from {tableName} where 1!=1 ; ";
+            await connection.ExecuteAsync(createTmpTableSql,null, transaction);
+
+            #region // 批量插入数据到临时表
+            var dt = ConvertPropListToDataTable(queryPropList);
+            dt.TableName = tempTableName;
+
+            SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
+            SqlBulkCopy sqlBulkCopy;
+            if (transaction == null)
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection);
+            }
+            else
+            {
+                sqlBulkCopy = new SqlBulkCopy((SqlConnection)connection, options, (SqlTransaction)transaction);
+            }
+
+            //设置数据库表名
+            sqlBulkCopy.DestinationTableName = dt.TableName;
+            if (commandTimeout.HasValue && commandTimeout.Value > 0)
+                sqlBulkCopy.BulkCopyTimeout = commandTimeout.Value;
+
+            await sqlBulkCopy.WriteToServerAsync(dt);
+
+            if (transaction == null)
+            {
+                sqlBulkCopy.Close();
+            }
+            #endregion
+            
+            //TODO:去掉缓存的sql语句
+            GetSingleKey<T>(nameof(GetAll));
+            //var name = GetTableName(type);
+
+            //自定义条件
+            if (!string.IsNullOrEmpty(whereSql))
+            {
+                if (!whereSql.ToLower().Contains("where"))
+                {
+                    whereSql = " where " + whereSql;
+                }
+            }
+            //排序
+            if (!string.IsNullOrEmpty(sortBy) && !sortBy.ToLower().Contains("order ") && !sortBy.ToLower().Contains(" by"))
+            {
+                sortBy = " order by " + sortBy;
+            }
+            //sql = "SELECT * FROM " + name;
+            // var sql = $"SELECT * FROM {tableName} {whereSql} {(string.IsNullOrEmpty(sortBy) ? "" : sortBy) } ";
+            var sql = $"SELECT a.* FROM {tableName} a inner join {tempTableName} temp on a.{queryColumnName} =temp.{queryColumnTempName} {whereSql} {(string.IsNullOrEmpty(sortBy) ? "" : sortBy) } ";
+
+            //自定义参数
+            var dynParms = new DynamicParameters();
+            dynParms.AddDynamicParams(dicParms);
+            IEnumerable<T> list;
+            if (!type.IsInterface)
+            {
+                //return connection.QueryAsync<T>(sql, null, transaction, commandTimeout);
+                list = await connection.QueryAsync<T>(sql, dynParms, transaction, commandTimeout);
+            }
+            else
+            {
+                list = await GetAllAsyncImpl<T>(connection, transaction, commandTimeout, sql, type);
+            }
+
+            // 删除临时表
+            var deleteTemTableSql = $" drop table {tempTableName} ; ";
+            await connection.ExecuteAsync(deleteTemTableSql, null, transaction);
+            return list;
+        }
         #region private method
         private static async Task<bool> BulkInsertSqlServerAsync<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
        int? commandTimeout = null) where T : class
@@ -1575,6 +1698,24 @@ namespace Dapper.Contrib.Extensions.TZ
             #endregion
 
             dt.TableName = name;
+            return dt;
+        } 
+        
+        private static DataTable ConvertPropListToDataTable(KeyValuePair<string,List<object>> kvPair)
+        {
+            var dt = new DataTable();
+            #region 构建DataTable
+            //var propType = kvPair.Value[0].GetType();
+            dt.Columns.Add(kvPair.Key);
+            var dataList = kvPair.Value.Distinct();
+            foreach (var item in dataList)
+            {
+                var row = dt.NewRow();
+                row[0] = item;
+                dt.Rows.Add(row);
+            }
+            #endregion
+
             return dt;
         } 
         #endregion

@@ -14,13 +14,13 @@
 
   <!-- Package 相关设置 -->
   <PropertyGroup>
-    <Version>2.0.123</Version>
+    <Version>2.0.123.1</Version>
     <PackageIconUrl></PackageIconUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl></RepositoryUrl>
 	  <ReleaseNotes>
 		  更新内容：
-		  1.SqlServer批量更新
+		  1.SqlServer按字段批量查询
 	  </ReleaseNotes>
   </PropertyGroup>
 

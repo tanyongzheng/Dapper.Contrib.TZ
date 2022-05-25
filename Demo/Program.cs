@@ -17,8 +17,9 @@ namespace Demo
             //TestSqlServer();
             //await CreateCountryTable();
             //await TestSqlServerBulk();
-            await TestSqlServerBulkUpdate();
+            //await TestSqlServerBulkUpdate();
             //await TestSqlServerDelete();
+            await TestSqlServerBulkGet();
             Console.ReadKey();
             //Console.WriteLine("Hello World!");
         }
@@ -156,6 +157,27 @@ namespace Demo
                 {
                     tran.Rollback();
                 }
+            }
+        }
+
+
+        private static async Task TestSqlServerBulkGet()
+        {
+            //数据库连接字符串
+            string ConnectionString = "Server=localhost;Database=Test;Trusted_Connection=True;MultipleActiveResultSets=true";
+            using (var conn = new SqlConnection(ConnectionString))
+            {
+                conn.Open();
+                var dicParams = new Dictionary<string, object>();
+                dicParams.Add("@maxId", 10000);
+
+                List<object> idList = new List<object>() { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,10,10,10 ,-100};
+                KeyValuePair<string, List<object>> queryPropList = new KeyValuePair<string, List<object>>("CountryId", idList);
+                List<object> nameList = new List<object>() { "国家测试-1","国家测试-2","国家测试-3","国家测试-3","国家测试-A3" };
+                KeyValuePair<string, List<object>> queryPropList2 = new KeyValuePair<string, List<object>>("CnName", nameList);
+
+                var entityList1 = await conn.BulkGetAsync<CountryEntity>(" where CountryId < @maxId ", dicParams, queryPropList);
+                var entityList2 = await conn.BulkGetAsync<CountryEntity>(" where CountryId < @maxId ", dicParams, queryPropList2);
             }
         }
 
