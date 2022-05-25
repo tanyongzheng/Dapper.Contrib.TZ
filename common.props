@@ -14,7 +14,7 @@
 
   <!-- Package 相关设置 -->
   <PropertyGroup>
-    <Version>2.0.123.1</Version>
+    <Version>2.0.123.2</Version>
     <PackageIconUrl></PackageIconUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl></RepositoryUrl>

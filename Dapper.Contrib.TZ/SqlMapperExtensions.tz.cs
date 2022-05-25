@@ -1343,15 +1343,20 @@ namespace Dapper.Contrib.Extensions.TZ
         }
 
 
-        public static async Task<bool> BulkUpdateAsync<T>(this DbConnection connection, List<T> list, string[] updateProps, IDbTransaction transaction = null, int? commandTimeout = null) where T : class
+        public static async Task<bool> BulkUpdateAsync<T>(
+            this DbConnection connection, 
+            List<T> list, string[] updateProps, 
+            IDbTransaction transaction = null, 
+            int? commandTimeout = null) where T : class
         {
+            #region 数据库判断
             //数据库类型名称
             var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
                                    ?? connection.GetType().Name.ToLower();
 
             if (databaseTypeName == "sqlconnection")
             {
-                
+
             }
             else if (databaseTypeName == "mysqlconnection")
             {
@@ -1375,7 +1380,8 @@ namespace Dapper.Contrib.Extensions.TZ
             else
             {
                 throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
-            }
+            } 
+            #endregion
 
             var type = typeof(T);
 
@@ -1393,12 +1399,13 @@ namespace Dapper.Contrib.Extensions.TZ
             // 创建临时表 (注意：临时表需要在同一个连接内才能访问)
 
             var tempTableName = @"#TmpTable" + tableName;
+            var dt = ConvertEntityListToDataTable(list, connection, transaction,commandTimeout);
+            dt.TableName = tempTableName;
+
             var createTmpTableSql = $"select  top 0  * into {tempTableName} from {tableName} where 1!=1 ; ";
-            await connection.ExecuteAsync(createTmpTableSql,null, transaction);
+            await connection.ExecuteAsync(createTmpTableSql,null, transaction,commandTimeout);
 
             #region // 批量插入数据到临时表
-            var dt = ConvertEntityListToDataTable(list, connection, transaction);
-            dt.TableName = tempTableName;
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1443,11 +1450,11 @@ namespace Dapper.Contrib.Extensions.TZ
 
             var updateSql = $" update {tableName} set {updatePropsSql} from {tableName} tb inner join {tempTableName} tmp on {relationPropSql} ; ";
 
-            await connection.ExecuteAsync(updateSql,null, transaction);
+            await connection.ExecuteAsync(updateSql,null, transaction,commandTimeout);
 
             // 删除临时表
             var deleteTemTableSql = $" drop table {tempTableName} ; ";
-            await connection.ExecuteAsync(deleteTemTableSql,null, transaction);
+            await connection.ExecuteAsync(deleteTemTableSql,null, transaction,commandTimeout);
             return true;
         }
 
@@ -1461,6 +1468,7 @@ namespace Dapper.Contrib.Extensions.TZ
             int? commandTimeout = null) 
             where T : class
         {
+            #region 数据库判断
             //数据库类型名称
             var databaseTypeName = GetDatabaseType?.Invoke(connection).ToLower()
                                    ?? connection.GetType().Name.ToLower();
@@ -1491,7 +1499,8 @@ namespace Dapper.Contrib.Extensions.TZ
             else
             {
                 throw new Exception($"暂不支持{databaseTypeName}连接的数据库");
-            }
+            } 
+            #endregion
 
             var queryColumnName = queryPropList.Key;
             var queryColumnTempName = queryColumnName + "_TempColumn";
@@ -1502,13 +1511,13 @@ namespace Dapper.Contrib.Extensions.TZ
             // 创建临时表 (注意：临时表需要在同一个连接内才能访问)
 
             var tempTableName = @"#TmpTable" + tableName+"_"+queryPropList.Key;
-
-            var createTmpTableSql = $"select  top 0  {queryColumnName} {queryColumnTempName} into {tempTableName} from {tableName} where 1!=1 ; ";
-            await connection.ExecuteAsync(createTmpTableSql,null, transaction);
-
-            #region // 批量插入数据到临时表
             var dt = ConvertPropListToDataTable(queryPropList);
             dt.TableName = tempTableName;
+
+            var createTmpTableSql = $"select  top 0  {queryColumnName} {queryColumnTempName} into {tempTableName} from {tableName} where 1!=1 ; ";
+            await connection.ExecuteAsync(createTmpTableSql,null, transaction,commandTimeout);
+
+            #region // 批量插入数据到临时表
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1571,14 +1580,18 @@ namespace Dapper.Contrib.Extensions.TZ
 
             // 删除临时表
             var deleteTemTableSql = $" drop table {tempTableName} ; ";
-            await connection.ExecuteAsync(deleteTemTableSql, null, transaction);
+            await connection.ExecuteAsync(deleteTemTableSql, null, transaction,commandTimeout);
             return list;
         }
+        
         #region private method
-        private static async Task<bool> BulkInsertSqlServerAsync<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
-       int? commandTimeout = null) where T : class
+        private static async Task<bool> BulkInsertSqlServerAsync<T>(
+            DbConnection connection, 
+            List<T> list, IDbTransaction transaction = null,
+            int? commandTimeout = null) 
+            where T : class
         {
-            var dt = ConvertEntityListToDataTable(list,connection,transaction);
+            var dt = ConvertEntityListToDataTable(list,connection,transaction, commandTimeout);
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1607,10 +1620,13 @@ namespace Dapper.Contrib.Extensions.TZ
         }
 
 
-        private static bool BulkInsertSqlServer<T>(DbConnection connection, List<T> list, IDbTransaction transaction = null,
-            int? commandTimeout = null) where T : class
+        private static bool BulkInsertSqlServer<T>(
+            DbConnection connection, 
+            List<T> list, IDbTransaction transaction = null,
+            int? commandTimeout = null) 
+            where T : class
         {
-            var dt = ConvertEntityListToDataTable(list,connection,transaction);
+            var dt = ConvertEntityListToDataTable(list,connection,transaction,commandTimeout);
 
             SqlBulkCopyOptions options = SqlBulkCopyOptions.Default;
             SqlBulkCopy sqlBulkCopy;
@@ -1638,7 +1654,7 @@ namespace Dapper.Contrib.Extensions.TZ
             return true;
         }
 
-        private static DataTable ConvertEntityListToDataTable<T>(List<T> list,DbConnection connection, IDbTransaction transaction = null) where T : class
+        private static DataTable ConvertEntityListToDataTable<T>(List<T> list,DbConnection connection, IDbTransaction transaction = null, int? commandTimeout = null) where T : class
         {
             var dt = new DataTable();
 
@@ -1669,7 +1685,7 @@ namespace Dapper.Contrib.Extensions.TZ
             */
 
             #region 获取表字段顺序
-            var dataReader = connection.ExecuteReader($"select top 0 * from {name}",null,transaction);
+            var dataReader = connection.ExecuteReader($"select top 0 * from {name}",null,transaction,commandTimeout);
             dt.Load(dataReader);
             #endregion
 
